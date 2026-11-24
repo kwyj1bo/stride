@@ -1,0 +1,39 @@
+# Built-in device registry. Each entry says how one device writes its files.
+# Units default to metres, m/s and metres; timezone is used only for timestamps
+# that carry no UTC offset.
+
+devices:
+  watch_fit:
+    name: GPS sports watch (FIT export)
+    format: fit
+    nominal_hz: 1.0
+
+  phone_gpx:
+    name: Phone running app (GPX export)
+    format: gpx
+    nominal_hz: 1.0
+
+  bike_tcx:
+    name: Bike computer (TCX export, smart recording)
+    format: tcx
+    nominal_hz: 0.25
+
+  app_csv:
+    name: Fitness app CSV export (imperial, local time)
+    format: csv
+    timezone: Asia/Kolkata
+    nominal_hz: 0.5
+    units:
+      distance: mi
+      speed: mph
+      elevation: ft
+    csv_columns:
+      t: Time
+      lat: Latitude
+      lon: Longitude
+      ele: Altitude (ft)
+      hr: Heart Rate
+      cadence: Cadence
+      speed: Speed (mph)
+      distance: Distance (mi)
+    csv_time_format: "%Y-%m-%d %H:%M:%S"

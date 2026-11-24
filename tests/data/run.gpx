@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+  <trk>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="19.0760" lon="72.8777"><ele>10.0</ele><time>2026-11-01T01:00:00Z</time>
+        <extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>120</gpxtpx:hr><gpxtpx:cad>80</gpxtpx:cad></gpxtpx:TrackPointExtension></extensions></trkpt>
+      <trkpt lat="19.0761" lon="72.8778"><ele>10.5</ele><time>2026-11-01T01:00:01Z</time>
+        <extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>122</gpxtpx:hr><gpxtpx:cad>82</gpxtpx:cad></gpxtpx:TrackPointExtension></extensions></trkpt>
+      <trkpt lat="19.0762" lon="72.8779"><time>2026-11-01T06:30:02+05:30</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
