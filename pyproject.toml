@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stride"
+version = "0.1.0"
+description = "Merge, clean and validate workout data from many devices into one versioned dataset."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Pratik Lande" }]
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5", "fitdecode>=0.10"]
+
+[project.scripts]
+stride = "stride.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stride"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
