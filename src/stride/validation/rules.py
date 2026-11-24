@@ -91,8 +91,12 @@ class GpsJump(SampleRule):
 
     Each fix is compared with the last accepted one: it is a jump if reaching it needs more
     than max_speed plus a 20 m allowance for normal GPS noise. After five jumps in a row the
-    track is accepted as moved (the device really relocated, e.g. after a car ride), so
-    one bad anchor cannot flag the rest of the recording.
+    track is accepted as moved (the device really relocated, e.g. after a car ride).
+
+    The pass runs forwards and backwards in time and a fix is flagged only if both agree.
+    One direction alone has a failure mode: a small jump that slips under the threshold
+    becomes the trusted anchor, and the good fixes after it then look like jumps. Seen from
+    the other side, those good fixes are fine, so the intersection drops them.
     """
 
     name, severity = "gps_jump", "error"
@@ -101,6 +105,11 @@ class GpsJump(SampleRule):
 
     def check(self, ctx):
         order = np.argsort(ctx.seconds, kind="stable")
+        forward = self._pass(ctx, order)
+        backward = self._pass(ctx, order[::-1])
+        return forward & backward
+
+    def _pass(self, ctx, order) -> np.ndarray:
         mask = np.zeros(len(order), bool)
         anchor, streak = None, []
         for i in order:
@@ -109,7 +118,7 @@ class GpsJump(SampleRule):
             if anchor is None:
                 anchor = i
                 continue
-            dt = max(ctx.seconds[i] - ctx.seconds[anchor], 0.0)
+            dt = abs(ctx.seconds[i] - ctx.seconds[anchor])
             dist = np.hypot(*(ctx.enu[i, :2] - ctx.enu[anchor, :2]))
             if dist <= ctx.max_speed * dt + self.NOISE_M:
                 anchor, streak = i, []

@@ -65,10 +65,14 @@ class Validator:
             activity.device_id,
             len(activity.samples),
             flags,
-            UnitCheck(self.units).check(ctx),
+            UnitCheck(self.units).check(ctx, exclude=self._bad_positions(flags)),
         )
         report.quality = quality_metrics(activity.samples, ctx.seconds, report, self.nominal_hz)
         return report
+
+    @staticmethod
+    def _bad_positions(flags: pd.DataFrame) -> np.ndarray | None:
+        return flags["gps_jump"].to_numpy() if "gps_jump" in flags else None
 
 
 def quality_metrics(

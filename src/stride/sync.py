@@ -4,7 +4,7 @@ Device clocks disagree: a phone may be seconds off, a cheap watch drifts. Compar
 sample-by-sample needs one time base. We estimate how far device B's clock is ahead of
 reference A by sliding B's GPS track in time until it lies on top of A's track.
 
-offset(t) = a + b * (t - t0): a is the offset at the start of the overlap, b the drift
+offset(t) = a + b * (t - t0): a is the offset at the middle of the overlap, b the drift
 (seconds of error per second; 1e-6 is 1 ppm). Corrected B time = t_B - offset(t_B).
 """
 
@@ -22,9 +22,9 @@ from stride.schema import Activity
 
 @dataclass
 class SyncResult:
-    offset_s: float  # B clock minus A clock at the start of the overlap
+    offset_s: float  # B clock minus A clock at t0
     drift_ppm: float
-    t0: float  # UTC seconds where offset_s applies
+    t0: float  # middle of the overlap, UTC seconds
     residual_m: float  # RMS distance between the aligned tracks
     windows: int  # windows used for the drift fit
 
@@ -34,11 +34,16 @@ class SyncResult:
 
 class ClockSync:
     def __init__(
-        self, max_lag_s: float = 300.0, window_s: float = 600.0, min_overlap_s: float = 120.0
+        self,
+        max_lag_s: float = 300.0,
+        window_s: float = 600.0,
+        min_overlap_s: float = 120.0,
+        max_drift_ppm: float = 500.0,
     ) -> None:
         self.max_lag_s = max_lag_s
         self.window_s = window_s
         self.min_overlap_s = min_overlap_s
+        self.max_drift_ppm = max_drift_ppm
 
     def estimate(self, ref: Activity, other: Activity) -> SyncResult | None:
         """None when the two tracks do not share enough positions to compare."""
@@ -70,7 +75,11 @@ class ClockSync:
         )
 
     def _fit_drift(self, tracks, grid, lag) -> SyncResult:
-        """Re-estimate the lag in consecutive windows and fit a line through them."""
+        """The whole-overlap lag is the offset at the overlap's middle. Drift comes from
+        re-estimating the lag in windows and fitting a line, and is kept only if the slope
+        is clearly larger than its own standard error: GPS error is correlated over tens of
+        seconds, so on a short session window lags wobble by a few tenths of a second and
+        an unchecked fit would report hundreds of ppm of drift that is not there."""
         centres, lags = [], []
         for start in np.arange(grid[0], grid[-1], self.window_s):
             window = grid[(grid >= start) & (grid < start + self.window_s)]
@@ -80,13 +89,10 @@ class ClockSync:
             if local is not None:
                 centres.append(window.mean())
                 lags.append(local)
-        t0 = float(grid[0])
-        if len(lags) >= 2:
-            slope, intercept = np.polyfit(np.array(centres) - t0, lags, 1)
-        else:
-            slope, intercept = 0.0, lag
-        residual = np.sqrt(tracks.cost(grid, intercept))
-        return SyncResult(float(intercept), float(slope * 1e6), t0, float(residual), len(lags))
+        t0 = float(grid.mean())
+        drift = _significant_slope(np.array(centres) - t0, np.array(lags), self.max_drift_ppm)
+        residual = np.sqrt(max(tracks.cost(grid, lag), 0.0))  # noise correction can dip below 0
+        return SyncResult(float(lag), drift * 1e6, t0, float(residual), len(lags))
 
     def _search(self, tracks, grid, lo, hi, step) -> float | None:
         """Lag with the lowest cost on a grid, refined by a parabola through the best
@@ -143,6 +149,22 @@ class _Tracks:
         d2 = d2 - self.other_noise2 * _interp_variance_factor(self.other_t, query[inside])
         d2 = d2[~np.isnan(d2)]
         return float(d2.mean()) if len(d2) >= self.MIN_PAIRS else np.nan
+
+
+def _significant_slope(x: np.ndarray, y: np.ndarray, max_ppm: float) -> float:
+    """Least-squares slope if it is at least three standard errors from zero and
+    physically plausible; otherwise 0."""
+    if len(x) < 3:
+        return 0.0
+    slope, intercept = np.polyfit(x, y, 1)
+    residuals = y - (slope * x + intercept)
+    spread = np.sum((x - x.mean()) ** 2)
+    if spread <= 0:
+        return 0.0
+    stderr = np.sqrt(np.sum(residuals**2) / (len(x) - 2) / spread)
+    if abs(slope) < 3 * stderr or abs(slope) * 1e6 > max_ppm:
+        return 0.0
+    return float(slope)
 
 
 def _white_noise_variance(xy: np.ndarray) -> float:

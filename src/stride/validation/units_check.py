@@ -33,9 +33,14 @@ class UnitCheck:
     def __init__(self, registered: dict[str, str]) -> None:
         self.registered = registered
 
-    def check(self, ctx: Context) -> list[UnitFinding]:
+    def check(self, ctx: Context, exclude: np.ndarray | None = None) -> list[UnitFinding]:
+        """exclude: samples whose position should not count, e.g. flagged GPS jumps. A
+        single 1 km jump adds 2 km to the track and would hide or fake a unit mix-up."""
         order = np.argsort(ctx.seconds, kind="stable")
-        enu = ctx.enu[order]
+        enu = ctx.enu.copy()
+        if exclude is not None:
+            enu[exclude] = np.nan
+        enu = enu[order]
         gps_m = path_length(enu)
         if gps_m < self.MIN_TRACK_M:
             return []
