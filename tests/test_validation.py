@@ -56,9 +56,9 @@ def test_multi_point_detour_is_flagged_but_a_real_relocation_is_accepted():
         lat, lon, _ = frame.to_geodetic(np.array([[3.0 * i, 5000.0, 0.0]]))
         s.loc[i, ["lat", "lon"]] = [lat[0], lon[0]]
     report = Validator(nominal_hz=1.0).run(activity)
-    flags = flagged(report, "gps_jump")
-    assert flags[:3] == [40, 41, 42]
-    assert len(flags) == 3 + 5  # five samples flagged before re-anchoring
+    # The detour is flagged. The relocation is not: forwards it looks like five jumps,
+    # backwards the five fixes before it do, and the two passes never agree.
+    assert flagged(report, "gps_jump") == [40, 41, 42]
 
 
 @pytest.mark.parametrize(
@@ -97,3 +97,16 @@ def test_cleaner_sorts_dedupes_and_blanks_only_the_bad_channel():
     assert cleaned["t"].is_monotonic_increasing and cleaned["t"].is_unique
     row = cleaned[cleaned["t"] == s.loc[10, "t"]].iloc[0]
     assert np.isnan(row["hr_bpm"]) and not np.isnan(row["lat"])
+
+
+def test_slipped_jump_does_not_flag_the_good_fixes_after_it():
+    # A drift away in 28 m steps never breaks the 32 m limit, so the forward pass trusts
+    # it, then sees the return to the true track as a jump. The backward pass disagrees.
+    activity = straight_run()
+    s = activity.samples
+    frame = LocalFrame(*s.loc[0, ["lat", "lon", "ele_m"]])
+    for k, i in enumerate(range(100, 103), start=1):
+        lat, lon, _ = frame.to_geodetic(np.array([[3.0 * i, 28.0 * k, 0.0]]))
+        s.loc[i, ["lat", "lon"]] = [lat[0], lon[0]]
+    report = Validator(nominal_hz=1.0).run(activity)
+    assert not set(flagged(report, "gps_jump")) & set(range(103, 110))
